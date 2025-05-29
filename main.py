@@ -20,6 +20,8 @@ app.add_middleware(
 
 # Load the trained model
 try:
+    # Ensure this 'diabetes_model.pkl' is the one trained on the BINARY target
+    # (0 for No Diabetes, 1 for Prediabetes/Diabetes combined)
     model = joblib.load('diabetes_model.pkl')
     print("Model loaded successfully")
     if hasattr(model, 'feature_names_in_'):
@@ -28,6 +30,7 @@ try:
     else:
         # IMPORTANT: This list MUST EXACTLY match the feature names and their order
         # used when training your 'diabetes_model.pkl'.
+        # Double-check this against your Python notebook where you train the model.
         feature_names = [
             'HighBP', 'HighChol', 'CholCheck', 'BMI', 'Smoker', 'Stroke',
             'HeartDiseaseorAttack', 'PhysActivity', 'Fruits', 'Veggies',
@@ -42,7 +45,7 @@ except Exception as e:
     raise
 
 class UserInput(BaseModel):
-    # Field mappings to dataset columns - Ensure these match your model's expected order
+    # These field names and types must match the frontend's processedAnswers
     high_bp: int = Field(..., ge=0, le=1)  # HighBP
     high_chol: int = Field(..., ge=0, le=1)  # HighChol
     chol_check: int = Field(..., ge=0, le=1)  # CholCheck
@@ -96,17 +99,19 @@ async def predict_diabetes(data: UserInput):
         input_df = pd.DataFrame([input_values], columns=feature_names)
         logging.debug(f"Input DataFrame for prediction:\n{input_df}")
 
+        # The model should only output 0 or 1 for a binary classifier
         prediction = model.predict(input_df)[0]
         logging.debug(f"Raw prediction: {prediction}")
 
-        # Map numerical prediction to human-readable string
+        # Map numerical prediction to human-readable string (UPDATED FOR BINARY)
         result_map = {
             0: "No Diabetes Detected",
-            1: "Potential Prediabetes / Prediabetes Risk",
+            # This label now covers both original Prediabetes and Diabetes
+            1: "Potential Diabetes/Prediabetes Risk",
         }
         prediction_label = result_map.get(prediction, "Unknown Status")
 
-        # Generate tailored advice based on prediction
+        # Generate tailored advice based on prediction (UPDATED FOR BINARY)
         advice = ""
         if prediction == 0: # No Diabetes
             advice = (
@@ -115,31 +120,28 @@ async def predict_diabetes(data: UserInput):
                 "activity, and routine medical check-ups. Regular health screenings are always "
                 "recommended for early detection of any potential health changes."
             )
-        elif prediction == 1: # Prediabetes
+        elif prediction == 1: # This now covers both original Prediabetes and Diabetes
             advice = (
-                "The model suggests 'Potential Prediabetes Risk'. This indicates that your blood sugar "
-                "levels are higher than normal but not yet high enough to be classified as type 2 diabetes. "
-                "This is a critical stage where lifestyle interventions can prevent or delay the onset of diabetes. "
-                "It is **highly recommended** that you consult with a healthcare professional (doctor, endocrinologist, "
-                "or nutritionist) for personalized advice, further testing, and guidance on dietary changes, "
-                "exercise plans, and weight management. Early intervention is key."
+                "The model indicates a 'Potential Diabetes/Prediabetes Risk'. This suggests that your "
+                "blood sugar levels may be elevated, or you have risk factors consistent with diabetes. "
+                "It is **highly recommended** that you consult with a healthcare professional (doctor, "
+                "endocrinologist, or nutritionist) for comprehensive medical evaluation, further testing, "
+                "diagnosis, and personalized advice on treatment and lifestyle changes. Early detection, "
+                "diagnosis, and management are crucial for preventing or delaying serious complications."
             )
-        else : # Diabetes
-            advice = (
-                "An unexpected prediction was made. Please consult a healthcare professional for guidance regarding your health status."
-            )
-        
+        else: # Fallback for unexpected prediction values (should not happen with a correctly loaded binary model)
+            advice = "An unexpected prediction was made. Please consult a healthcare professional for guidance regarding your health status."
 
-        # Optional: Get prediction probabilities if your model supports it
-        probabilities_info = {}
+        # Get prediction probabilities if your model supports it (UPDATED FOR BINARY)
+        probabilities_info = {} # Initialize as empty
         if hasattr(model, 'predict_proba'):
             probabilities = model.predict_proba(input_df)[0]
             logging.debug(f"Prediction probabilities: {probabilities}")
-            # Assuming probabilities order corresponds to result_map (0, 1, 2)
+            # For a binary model, probabilities will be [prob_class_0, prob_class_1]
+            # Accessing probabilities[2] would cause an IndexError for a binary model.
             probabilities_info = {
                 "No Diabetes Probability": round(probabilities[0] * 100, 2),
-                "Prediabetes Probability": round(probabilities[1] * 100, 2),
-                "Diabetes Probability": round(probabilities[2] * 100, 2)
+                "Diabetes/Prediabetes Probability": round(probabilities[1] * 100, 2) # This is the probability for the combined risk
             }
 
         return {
