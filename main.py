@@ -23,16 +23,20 @@ app.add_middleware(
 logging.info(f"Using xgboost version: {xgb.__version__}")
 
 # Load the trained model
+# Update your model loading code
 try:
-    model = joblib.load('diabetes_model.pkl')
-    logging.info("Model loaded successfully")
+    pipeline = joblib.load('new_diabetes_model.pkl')
+    logging.info("Pipeline loaded successfully")
     
-    if isinstance(model, xgb.XGBClassifier):
-        logging.info(f"Model is an XGBClassifier with parameters: {model.get_params()}")
+    # Extract the model from the pipeline
+    model = pipeline.named_steps['classifier']
+    scaler = pipeline.named_steps['scaler']
     
+    logging.info(f"Model is an {type(model)} with parameters: {model.get_params()}")
+    
+    # Get feature names
     if hasattr(model, 'feature_names_in_'):
         feature_names = model.feature_names_in_
-        logging.info(f"Model expects features: {list(feature_names)}")
     else:
         feature_names = [
             'HighBP', 'HighChol', 'CholCheck', 'BMI', 'Smoker', 'Stroke',
@@ -40,8 +44,7 @@ try:
             'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'GenHlth',
             'MentHlth', 'PhysHlth', 'DiffWalk', 'Sex', 'Age', 'Education', 'Income'
         ]
-        logging.warning("Model does not expose feature_names_in_. Using hardcoded feature names.")
-        logging.info(f"Hardcoded features: {feature_names}")
+    logging.info(f"Features expected: {feature_names}")
 
 except Exception as e:
     logging.error(f"Error loading model: {e}", exc_info=True)
@@ -97,17 +100,14 @@ async def predict_diabetes(data: UserInput):
             data.no_doc_cost, data.gen_health, data.ment_health, data.phys_health,
             data.diff_walk, data.sex, data.age, data.education, data.income
         ]
-        logging.debug(f"Received data (dict): {data.dict()}")
-        logging.debug(f"Input values list: {input_values}")
-
-        if 'feature_names' not in globals():
-            raise RuntimeError("Feature names not determined. Model loading might have failed or model type is unexpected.")
 
         input_df = pd.DataFrame([input_values], columns=feature_names)
-        logging.debug(f"Input DataFrame for prediction:\n{input_df}")
-
-        prediction = model.predict(input_df)[0]
-        logging.debug(f"Raw prediction: {prediction}")
+        
+        # Scale the input data using the pipeline's scaler
+        scaled_input = scaler.transform(input_df)
+        
+        # Make prediction
+        prediction = model.predict(scaled_input)[0]
 
         result_map = {
             0: "No Diabetes Detected",
