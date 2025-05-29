@@ -102,8 +102,7 @@ async def predict_diabetes(data: UserInput):
         # Map numerical prediction to human-readable string
         result_map = {
             0: "No Diabetes Detected",
-            1: "Potential Prediabetes Risk",
-            2: "Potential Diabetes Risk"
+            1: "Potential Prediabetes / Prediabetes Risk",
         }
         prediction_label = result_map.get(prediction, "Unknown Status")
 
@@ -125,17 +124,11 @@ async def predict_diabetes(data: UserInput):
                 "or nutritionist) for personalized advice, further testing, and guidance on dietary changes, "
                 "exercise plans, and weight management. Early intervention is key."
             )
-        elif prediction == 2: # Diabetes
+        else : # Diabetes
             advice = (
-                "The model indicates 'Potential Diabetes Risk'. This suggests that the current parameters "
-                "are consistent with a diagnosis of diabetes. It is **imperative** that you consult with "
-                "a qualified healthcare professional immediately for comprehensive medical evaluation, "
-                "diagnosis, and a personalized treatment plan. Diabetes requires ongoing management, "
-                "including medication adherence, dietary modifications, regular exercise, and consistent "
-                "monitoring to prevent serious complications."
+                "An unexpected prediction was made. Please consult a healthcare professional for guidance regarding your health status."
             )
-        else:
-            advice = "Please consult a healthcare professional for guidance regarding your health status."
+        
 
         # Optional: Get prediction probabilities if your model supports it
         probabilities_info = {}
