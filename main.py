@@ -19,20 +19,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Log the xgboost version
-logging.info(f"Using xgboost version: {xgb.__version__}")
-
 # Load the trained model
-# Update your model loading code
 try:
     pipeline = joblib.load('new_diabetes_model.pkl')
     logging.info("Pipeline loaded successfully")
     
-    # Extract the model from the pipeline
+    # Extract components from the pipeline
     model = pipeline.named_steps['classifier']
     scaler = pipeline.named_steps['scaler']
     
-    logging.info(f"Model is an {type(model)} with parameters: {model.get_params()}")
+    # Handle XGBoost version compatibility
+    if hasattr(model, 'set_params'):
+        model.set_params(**{'use_label_encoder': False})
+    
+    logging.info(f"Model is an {type(model)}")
     
     # Get feature names
     if hasattr(model, 'feature_names_in_'):
@@ -87,12 +87,14 @@ async def root():
 @app.post("/predict")
 async def predict_diabetes(data: UserInput):
     try:
+        # Input validation
         if data.gen_health <= 2 and (data.ment_health > 10 or data.phys_health > 10):
             raise ValueError(
                 "Inconsistent data: General health rated as 'Excellent' or 'Very good' "
                 "but mental or physical health days exceed 10."
             )
 
+        # Prepare input data
         input_values = [
             data.high_bp, data.high_chol, data.chol_check, data.bmi,
             data.smoker, data.stroke, data.heart_disease, data.phys_activity,
@@ -100,21 +102,27 @@ async def predict_diabetes(data: UserInput):
             data.no_doc_cost, data.gen_health, data.ment_health, data.phys_health,
             data.diff_walk, data.sex, data.age, data.education, data.income
         ]
-
+        
         input_df = pd.DataFrame([input_values], columns=feature_names)
         
-        # Scale the input data using the pipeline's scaler
+        # Scale the input data
         scaled_input = scaler.transform(input_df)
         
-        # Make prediction
-        prediction = model.predict(scaled_input)[0]
-
+        # Get probabilities first
+        probabilities = model.predict_proba(scaled_input)[0]
+        diabetes_prob = probabilities[1]  # Probability of diabetes/prediabetes
+        
+        # Make prediction based on threshold (0.5 is standard for binary classification)
+        prediction = 1 if diabetes_prob >= 0.5 else 0
+        
+        # Result mapping
         result_map = {
             0: "No Diabetes Detected",
             1: "Potential Diabetes/Prediabetes Risk",
         }
         prediction_label = result_map.get(prediction, "Unknown Status")
 
+        # Generate appropriate advice
         advice = ""
         if prediction == 0:
             advice = (
@@ -123,7 +131,7 @@ async def predict_diabetes(data: UserInput):
                 "activity, and routine medical check-ups. Regular health screenings are always "
                 "recommended for early detection of any potential health changes."
             )
-        elif prediction == 1:
+        else:
             advice = (
                 "The model indicates a 'Potential Diabetes/Prediabetes Risk'. This suggests that your "
                 "blood sugar levels may be elevated, or you have risk factors consistent with diabetes. "
@@ -132,23 +140,20 @@ async def predict_diabetes(data: UserInput):
                 "diagnosis, and personalized advice on treatment and lifestyle changes. Early detection, "
                 "diagnosis, and management are crucial for preventing or delaying serious complications."
             )
-        else:
-            advice = "An unexpected prediction was made. Please consult a healthcare professional for guidance regarding your health status."
 
-        probabilities_info = {}
-        if hasattr(model, 'predict_proba'):
-            probabilities = model.predict_proba(input_df)[0]
-            logging.debug(f"Prediction probabilities: {probabilities}")
-            probabilities_info = {
-                "No Diabetes Probability": round(probabilities[0] * 100, 2),
-                "Diabetes/Prediabetes Probability": round(probabilities[1] * 100, 2)
-            }
+        # Prepare probability information
+        probabilities_info = {
+            "No Diabetes Probability": round(probabilities[0] * 100, 2),
+            "Diabetes/Prediabetes Probability": round(probabilities[1] * 100, 2)
+        }
 
         return {
             "prediction": prediction_label,
             "advice": advice,
             "disclaimer": MEDICAL_DISCLAIMER,
-            "probabilities": probabilities_info
+            "probabilities": probabilities_info,
+            "raw_prediction": float(prediction),
+            "raw_probability": float(diabetes_prob)
         }
 
     except ValueError as ve:
