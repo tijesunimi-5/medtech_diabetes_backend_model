@@ -5,6 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import logging
+import xgboost as xgb  # Import xgboost to check the version
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,13 +19,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Log the xgboost version
+logging.info(f"Using xgboost version: {xgb.__version__}")
+
 # Load the trained model
 try:
     model = joblib.load('diabetes_model.pkl')
-    print("Model loaded successfully")
+    logging.info("Model loaded successfully")
+    
+    # Check if the model is an XGBClassifier and log its attributes
+    if isinstance(model, xgb.XGBClassifier):
+        logging.info(f"Model is an XGBClassifier with parameters: {model.get_params()}")
+    
+    # Check feature names
     if hasattr(model, 'feature_names_in_'):
         feature_names = model.feature_names_in_
-        print(f"Model expects features: {list(feature_names)}")
+        logging.info(f"Model expects features: {list(feature_names)}")
     else:
         feature_names = [
             'HighBP', 'HighChol', 'CholCheck', 'BMI', 'Smoker', 'Stroke',
@@ -32,11 +42,11 @@ try:
             'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'GenHlth',
             'MentHlth', 'PhysHlth', 'DiffWalk', 'Sex', 'Age', 'Education', 'Income'
         ]
-        print("Warning: Model does not expose feature_names_in_. Using hardcoded feature names.")
-        print(f"Hardcoded features: {feature_names}")
+        logging.warning("Model does not expose feature_names_in_. Using hardcoded feature names.")
+        logging.info(f"Hardcoded features: {feature_names}")
 
 except Exception as e:
-    print(f"Error loading model: {e}")
+    logging.error(f"Error loading model: {e}", exc_info=True)
     raise
 
 class UserInput(BaseModel):
@@ -50,7 +60,7 @@ class UserInput(BaseModel):
     phys_activity: int = Field(..., ge=0, le=1)
     fruits: int = Field(..., ge=0, le=1)
     veggies: int = Field(..., ge=0, le=1)
-    alcohol: int = Field(..., ge=0, le=1)
+    alcohol: int = Field(..., discretionarye=0, le=1)
     healthcare: int = Field(..., ge=0, le=1)
     no_doc_cost: int = Field(..., ge=0, le=1)
     gen_health: int = Field(..., ge=1, le=5)
@@ -99,6 +109,14 @@ async def predict_diabetes(data: UserInput):
         input_df = pd.DataFrame([input_values], columns=feature_names)
         logging.debug(f"Input DataFrame for prediction:\n{input_df}")
 
+        # Ensure the model is compatible with the current xgboost version
+        if isinstance(model, xgb.XGBClassifier):
+            # If the model has the use_label_encoder attribute, remove it (for compatibility)
+            if hasattr(model, 'use_label_encoder'):
+                logging.warning("Model has deprecated 'use_label_encoder' attribute. Removing it.")
+                model.use_label_encoder = None  # This attribute should not be used in newer versions
+
+        # Make the prediction
         prediction = model.predict(input_df)[0]
         logging.debug(f"Raw prediction: {prediction}")
 
@@ -145,14 +163,12 @@ async def predict_diabetes(data: UserInput):
         }
 
     except ValueError as ve:
-        # Handle validation errors with the expected format
         logging.error(f"Validation error: {ve}")
         raise HTTPException(
             status_code=400,
             detail=[{"loc": ["body"], "msg": str(ve)}]
         )
     except Exception as e:
-        # Handle other errors in the expected format
         logging.error(f"Error during prediction: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
