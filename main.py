@@ -5,7 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import logging
-import xgboost as xgb  # Import xgboost to check the version
+import xgboost as xgb
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -27,11 +27,9 @@ try:
     model = joblib.load('diabetes_model.pkl')
     logging.info("Model loaded successfully")
     
-    # Check if the model is an XGBClassifier and log its attributes
     if isinstance(model, xgb.XGBClassifier):
         logging.info(f"Model is an XGBClassifier with parameters: {model.get_params()}")
     
-    # Check feature names
     if hasattr(model, 'feature_names_in_'):
         feature_names = model.feature_names_in_
         logging.info(f"Model expects features: {list(feature_names)}")
@@ -60,7 +58,7 @@ class UserInput(BaseModel):
     phys_activity: int = Field(..., ge=0, le=1)
     fruits: int = Field(..., ge=0, le=1)
     veggies: int = Field(..., ge=0, le=1)
-    alcohol: int = Field(..., discretionarye=0, le=1)
+    alcohol: int = Field(..., ge=0, le=1)
     healthcare: int = Field(..., ge=0, le=1)
     no_doc_cost: int = Field(..., ge=0, le=1)
     gen_health: int = Field(..., ge=1, le=5)
@@ -86,7 +84,6 @@ async def root():
 @app.post("/predict")
 async def predict_diabetes(data: UserInput):
     try:
-        # Additional validation: Check for data consistency
         if data.gen_health <= 2 and (data.ment_health > 10 or data.phys_health > 10):
             raise ValueError(
                 "Inconsistent data: General health rated as 'Excellent' or 'Very good' "
@@ -109,14 +106,6 @@ async def predict_diabetes(data: UserInput):
         input_df = pd.DataFrame([input_values], columns=feature_names)
         logging.debug(f"Input DataFrame for prediction:\n{input_df}")
 
-        # Ensure the model is compatible with the current xgboost version
-        if isinstance(model, xgb.XGBClassifier):
-            # If the model has the use_label_encoder attribute, remove it (for compatibility)
-            if hasattr(model, 'use_label_encoder'):
-                logging.warning("Model has deprecated 'use_label_encoder' attribute. Removing it.")
-                model.use_label_encoder = None  # This attribute should not be used in newer versions
-
-        # Make the prediction
         prediction = model.predict(input_df)[0]
         logging.debug(f"Raw prediction: {prediction}")
 
