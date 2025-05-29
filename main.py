@@ -2,10 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import joblib
-import numpy as np
 import pandas as pd
 import logging
-import xgboost as xgb
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -27,10 +25,6 @@ try:
     # Extract components from the pipeline
     model = pipeline.named_steps['classifier']
     scaler = pipeline.named_steps['scaler']
-    
-    # Handle XGBoost version compatibility
-    if hasattr(model, 'set_params'):
-        model.set_params(**{'use_label_encoder': False})
     
     logging.info(f"Model is an {type(model)}")
     
@@ -123,7 +117,6 @@ async def predict_diabetes(data: UserInput):
         prediction_label = result_map.get(prediction, "Unknown Status")
 
         # Generate appropriate advice
-        advice = ""
         if prediction == 0:
             advice = (
                 "Based on the provided information, the model indicates 'No Diabetes Detected'. "
