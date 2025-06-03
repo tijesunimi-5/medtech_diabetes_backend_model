@@ -141,15 +141,17 @@ async def predict_diabetes(data: UserInput):
             "raw_probability": float(diabetes_prob)
         }
 
-    except ValueError as ve:
+    except HTTPException as http_exc: # Catch HTTPExceptions specifically to re-raise them
+        raise http_exc
+    except ValueError as ve: # Changed to send a simple string in detail
         logging.error(f"Validation error: {ve}")
         raise HTTPException(
             status_code=400,
-            detail=[{"loc": ["body"], "msg": str(ve)}]
+            detail=f"Input data error: {str(ve)}" # Detail is now a string
         )
-    except Exception as e:
+    except Exception as e: # Changed to send a simple string in detail
         logging.error(f"Error during prediction: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=[{"loc": ["server"], "msg": f"Prediction error: {str(e)}"}]
+            detail=f"Prediction failed due to an internal server error: {str(e)}" # Detail is now a string
         )
