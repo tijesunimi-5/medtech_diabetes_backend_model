@@ -116,22 +116,14 @@ async def predict_diabetes(data: UserInput):
         }
         prediction_label = result_map.get(prediction, "Unknown Status")
 
-        # Generate appropriate advice
+        # Generate personalized AI-like advice
         if prediction == 0:
             advice = (
-                "Based on the provided information, the model indicates 'No Diabetes Detected'. "
-                "To maintain good health, continue to prioritize a balanced diet, regular physical "
-                "activity, and routine medical check-ups. Regular health screenings are always "
-                "recommended for early detection of any potential health changes."
+                "Great news! 🎉 My analysis suggests you’re in the clear—no diabetes detected. To keep things that way, I’d recommend sticking to a healthy diet 🥗, staying active 🏃, and getting regular check-ups with your doctor. Staying proactive with screenings is a smart move for catching any changes early!"
             )
         else:
             advice = (
-                "The model indicates a 'Potential Diabetes/Prediabetes Risk'. This suggests that your "
-                "blood sugar levels may be elevated, or you have risk factors consistent with diabetes. "
-                "It is **highly recommended** that you consult with a healthcare professional (doctor, "
-                "endocrinologist, or nutritionist) for comprehensive medical evaluation, further testing, "
-                "diagnosis, and personalized advice on treatment and lifestyle changes. Early detection, "
-                "diagnosis, and management are crucial for preventing or delaying serious complications."
+                "Hmm… my analysis shows a potential risk for diabetes or prediabetes. 📊 This could mean your blood sugar levels might be higher than usual, or you have some risk factors. I’d strongly suggest reaching out to a healthcare professional—like a doctor, endocrinologist, or nutritionist—for a thorough check-up and personalized guidance. Early action is key to managing this and preventing any complications down the road. You’ve got this! 💪"
             )
 
         # Prepare probability information
